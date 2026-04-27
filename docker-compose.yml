@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+
+  laravel:
+    build: ./docker/php
+    container_name: laravel_app
+    volumes:
+      - ./laravel-app:/var/www
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: openclaw
+    ports:
+      - "3306:3306"
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+
+  openclaw:
+    build: ./openclaw
+    container_name: openclaw
+    ports:
+      - "3000:3000"
