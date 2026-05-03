@@ -29,45 +29,57 @@ class AIController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
+            'session_id' => 'required|string',
             'model' => 'nullable|string'
         ]);
 
         return new StreamedResponse(function () use ($request, $ai) {
 
-            $response = $ai->stream(
+            $memory = app(\App\Services\AI\MemoryService::class);
+
+            $result = $ai->streamWithMemory(
                 $request->prompt,
+                $request->session_id,
                 $request->model
             );
 
+            $response = $result['stream'];
+            $conversation = $result['conversation'];
+
             $body = $response->getBody();
+
+            $fullResponse = ''; 
 
             while (!$body->eof()) {
                 $chunk = $body->read(1024);
 
-                if ($chunk) {
-                    $lines = explode("\n", $chunk);
+                $lines = explode("\n", $chunk);
 
-                    foreach ($lines as $line) {
-                        if (empty($line)) continue;
+                foreach ($lines as $line) {
+                    if (empty($line)) continue;
 
-                        $json = json_decode($line, true);
+                    $json = json_decode($line, true);
 
-                        if (!$json) continue;
+                    if (!$json) continue;
 
-                        if (isset($json['response'])) {
-                            echo "data: " . $json['response'] . "\n\n";
-                        }
+                    if (isset($json['response'])) {
+                        $text = $json['response'];
 
-                        if (!empty($json['done'])) {
-                            echo "data: [DONE]\n\n";
-                        }
+                        echo "data: " . $text . "\n\n";
+
+                        $fullResponse .= $text;
                     }
 
-                    ob_flush();
-                    flush();
-
+                    if (!empty($json['done'])) {
+                        echo "data: [DONE]\n\n";
+                    }
                 }
+
+                ob_flush();
+                flush();
             }
+
+            $memory->addMessage($conversation, 'assistant', trim($fullResponse));
 
         }, 200, [
             'Content-Type' => 'text/event-stream',
