@@ -33,4 +33,11 @@ class AIManager
             message: trim($raw['response'] ?? '')
         );
     }
+
+    public function stream(string $prompt, ?string $model = null)
+    {
+        $model = $model ?? config('ai.ollama.default_model');
+
+        return $this->provider->stream($prompt, $model);
+    }
 }

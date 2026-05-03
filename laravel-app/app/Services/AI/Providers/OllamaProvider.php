@@ -17,4 +17,15 @@ class OllamaProvider implements AIProvider
             ]
         )->json();
     }
+
+    public function stream(string $prompt, string $model)
+    {
+        return Http::withOptions([
+            'stream' => true,
+        ])->post(config('ai.ollama.url'), [
+            'model' => $model,
+            'prompt' => $prompt,
+            'stream' => true
+        ]);
+    }
 }
