@@ -21,23 +21,56 @@ class AIManager
         };
     }
 
-    public function generate(string $prompt, ?string $model = null): AIResponse
+    public function generate(string $prompt, ?string $modelKey = null)
     {
-        $model = $model ?? config('ai.ollama.default_model');
+        $modelKey = $modelKey ?? 'phi';
 
-        $raw = $this->provider->generate($prompt, $model);
+        [$providerName, $model] = $this->resolveModel($modelKey);
+
+        $provider = $this->resolveProvider($providerName);
+
+        $raw = $provider->generate($prompt, $model);
 
         return new AIResponse(
             success: true,
-            model: $model,
+            model: $modelKey,
             message: trim($raw['response'] ?? '')
         );
     }
 
-    public function stream(string $prompt, ?string $model = null)
+    public function stream(string $prompt, ?string $modelKey = null)
     {
-        $model = $model ?? config('ai.ollama.default_model');
+        $modelKey = $modelKey ?? 'phi';
 
-        return $this->provider->stream($prompt, $model);
+        [$providerName, $model] = $this->resolveModel($modelKey);
+
+        $provider = $this->resolveProvider($providerName);
+
+        return $provider->stream($prompt, $model);
+    }
+
+    private function resolveModel(string $modelKey): array
+    {
+        $providers = config('ai.providers');
+
+        foreach ($providers as $providerName => $provider) {
+            if (isset($provider['models'][$modelKey])) {
+                return [$providerName, $provider['models'][$modelKey]];
+            }
+        }
+
+        throw new \Exception("Model [$modelKey] not found");
+    }
+
+    private function resolveProvider(string $name)
+    {
+        return match ($name) {
+            'ollama' => app(\App\Services\AI\Providers\OllamaProvider::class),
+
+            // future
+            // 'openai' => app(OpenAIProvider::class),
+
+            default => throw new \Exception("Provider [$name] not supported"),
+        };
     }
 }

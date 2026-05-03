@@ -44,14 +44,32 @@ class AIController extends Controller
                 $chunk = $body->read(1024);
 
                 if ($chunk) {
-                    echo $chunk;
+                    $lines = explode("\n", $chunk);
+
+                    foreach ($lines as $line) {
+                        if (empty($line)) continue;
+
+                        $json = json_decode($line, true);
+
+                        if (!$json) continue;
+
+                        if (isset($json['response'])) {
+                            echo "data: " . $json['response'] . "\n\n";
+                        }
+
+                        if (!empty($json['done'])) {
+                            echo "data: [DONE]\n\n";
+                        }
+                    }
+
                     ob_flush();
                     flush();
+
                 }
             }
 
         }, 200, [
-            'Content-Type' => 'text/plain',
+            'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
             'Connection' => 'keep-alive',
         ]);
