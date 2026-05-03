@@ -3,6 +3,7 @@ namespace App\Services\AI;
 
 use App\Services\AI\Providers\OllamaProvider;
 use App\Services\AI\DTOs\AIResponse;
+use App\Services\AI\MemoryService;
 
 class AIManager
 {
@@ -21,20 +22,31 @@ class AIManager
         };
     }
 
-    public function generate(string $prompt, ?string $modelKey = null)
+    public function generateWithMemory(string $prompt, string $sessionId, ?string $modelKey = null)
     {
-        $modelKey = $modelKey ?? 'phi';
+        $memory = app(MemoryService::class);
 
-        [$providerName, $model] = $this->resolveModel($modelKey);
+        $conversation = $memory->getOrCreateConversation($sessionId);
 
+        $memory->addMessage($conversation, 'user', $prompt);
+
+        $history = $memory->getHistory($conversation);
+
+        $compiledPrompt = $this->compileHistory($history);
+
+        [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
         $provider = $this->resolveProvider($providerName);
 
-        $raw = $provider->generate($prompt, $model);
+        $raw = $provider->generate($compiledPrompt, $model);
+
+        $responseText = trim($raw['response'] ?? '');
+
+        $memory->addMessage($conversation, 'assistant', $responseText);
 
         return new AIResponse(
             success: true,
-            model: $modelKey,
-            message: trim($raw['response'] ?? '')
+            model: $modelKey ?? 'phi',
+            message: $responseText
         );
     }
 

@@ -12,18 +12,19 @@ class AIController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
+            'session_id' => 'required|string',
             'model' => 'nullable|string'
         ]);
 
-        $response = $ai->generate(
+        $response = $ai->generateWithMemory(
             $request->prompt,
+            $request->session_id,
             $request->model
         );
 
         return response()->json($response->toArray());
     }
 
-    
     public function stream(Request $request, AIManager $ai)
     {
         $request->validate([
