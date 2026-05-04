@@ -190,28 +190,178 @@ The app runs at `http://127.0.0.1:8000`.
 
 ## Part 4 — Test It
 
-### Open the chat UI
+### Option A — Built-in Chat UI (Recommended for streaming)
 
-Go to [http://127.0.0.1:8000/chat](http://127.0.0.1:8000/chat) in your browser.
+Open [http://127.0.0.1:8000/chat](http://127.0.0.1:8000/chat) in your browser.
 
-1. Enter your `AI_API_KEY` in the **API Key** field
-2. Select a model from the dropdown
-3. (Optional) Add a system prompt, e.g. `You are a senior Laravel developer`
-4. Type a message and press **Enter**
+```
+┌─────────────────────────────────────────────────────────┐
+│  ⚡ Ollama Chat          session-abc123      [New Chat] │
+├─────────────────────────────────────────────────────────┤
+│  API Key [••••••••••••]  Model [phi ▾]  System [...]   │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│                                     You                 │
+│                          ┌──────────────────────┐      │
+│                          │ Explain Laravel       │      │
+│                          └──────────────────────┘      │
+│                                                         │
+│  ┌────────────────────────────────────────────┐        │
+│  │ Laravel is a PHP web application           │        │
+│  │ framework that provides...  ▌              │        │
+│  └────────────────────────────────────────────┘        │
+│  Assistant                                              │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│  [ Type your message...                   ]  [Send]    │
+└─────────────────────────────────────────────────────────┘
+```
 
-You'll see tokens stream in real time as the model responds.
+**Steps:**
+
+1. Paste your `AI_API_KEY` value into the **API Key** field (saved in browser automatically)
+2. Pick a model — start with **phi** (fastest)
+3. Optionally set a **System** prompt, e.g. `You are a senior Laravel developer`
+4. Type a message and press **Enter** (Shift+Enter for a new line)
+5. Watch tokens stream in real time
+6. Hit **New Chat** to start a fresh conversation session
+
+> **Why use the UI for SSE?** Browser tools like Postman cannot display Server-Sent Events token-by-token. The built-in UI uses `fetch` + `ReadableStream` to show each token as it arrives — this is the only way to properly test streaming locally.
 
 ---
 
-### Test with cURL
+### Option B — Postman
+
+Postman is ideal for testing the `/api/ai/chat` endpoint and inspecting JSON responses.
+
+#### Step 1 — Create a Postman Environment
+
+Go to **Environments → Add** and create `Ollama Local` with these variables:
+
+| Variable | Initial Value |
+|---|---|
+| `base_url` | `http://127.0.0.1:8000` |
+| `api_key` | `my-secret-key` ← your `AI_API_KEY` value |
+| `session_id` | `postman-session-1` |
+
+Select `Ollama Local` as the active environment.
+
+#### Step 2 — Create a Collection
+
+Create a new collection named **Laravel Ollama AI**. Add the following requests:
+
+---
+
+**Request 1 — Health Check**
+
+- **Method:** `GET`
+- **URL:** `{{base_url}}/api/health`
+- **Headers:** *(none required)*
+
+Expected response `200`:
+```json
+{ "status": "ok", "ollama": "reachable", "time": "..." }
+```
+
+---
+
+**Request 2 — Chat (JSON response)**
+
+- **Method:** `POST`
+- **URL:** `{{base_url}}/api/ai/chat`
+- **Headers:**
+
+| Key | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-API-Key` | `{{api_key}}` |
+
+- **Body → raw → JSON:**
+
+```json
+{
+  "prompt": "Explain what Laravel is in 2 sentences",
+  "session_id": "{{session_id}}",
+  "model": "phi"
+}
+```
+
+Expected response `200`:
+```json
+{
+  "success": true,
+  "model": "phi",
+  "message": "Laravel is a PHP web application framework..."
+}
+```
+
+---
+
+**Request 3 — Chat with System Prompt**
+
+Same as Request 2, change the body to:
+
+```json
+{
+  "prompt": "Review this code: echo $x + 1;",
+  "session_id": "{{session_id}}",
+  "model": "llama3",
+  "system": "You are a senior PHP developer. Give short, direct code reviews."
+}
+```
+
+---
+
+**Request 4 — Chat with Memory (multi-turn)**
+
+Send these two requests **in order** using the same `session_id`. The second response will reference the first:
+
+Request A body:
+```json
+{
+  "prompt": "My name is Shafi",
+  "session_id": "memory-test-1"
+}
+```
+
+Request B body:
+```json
+{
+  "prompt": "What is my name?",
+  "session_id": "memory-test-1"
+}
+```
+
+The model should respond with `Shafi` — proving memory works across turns.
+
+---
+
+**Request 5 — Streaming (chunked)**
+
+- **Method:** `POST`
+- **URL:** `{{base_url}}/api/ai/stream`
+- Same headers and body format as Request 2
+
+> In Postman you will see the full response only after it completes — not token by token. Use the browser UI at `/chat` for real-time streaming.
+
+---
+
+#### Step 3 — Common Postman Errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `401 Unauthorized` | Wrong or missing API key | Check `X-API-Key` header matches `AI_API_KEY` in `.env` |
+| `422 Unprocessable Content` | Missing required field | Add `prompt` and `session_id` to the request body |
+| `503 Service Unavailable` | Ollama is not running | Run `ollama serve` in a terminal |
+| `Could not get response` | Laravel not running | Run `php artisan serve` |
+
+---
+
+### Option C — cURL
 
 **Health check (no auth)**
 ```bash
 curl http://127.0.0.1:8000/api/health
-```
-
-```json
-{ "status": "ok", "ollama": "reachable", "time": "..." }
 ```
 
 **Standard chat**
@@ -219,27 +369,15 @@ curl http://127.0.0.1:8000/api/health
 curl -X POST http://127.0.0.1:8000/api/ai/chat \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-secret-key" \
-  -d '{
-    "prompt": "Explain what Laravel is in 2 sentences",
-    "session_id": "test-123",
-    "model": "phi"
-  }'
+  -d '{"prompt":"Explain Laravel","session_id":"test-1","model":"phi"}'
 ```
 
-```json
-{ "success": true, "model": "phi", "message": "Laravel is..." }
-```
-
-**SSE streaming**
+**SSE streaming (tokens print as they arrive)**
 ```bash
 curl -X POST http://127.0.0.1:8000/api/ai/sse \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-secret-key" \
-  -d '{
-    "prompt": "List 3 Laravel features",
-    "session_id": "test-123",
-    "model": "phi"
-  }'
+  -d '{"prompt":"List 3 Laravel features","session_id":"test-1","model":"phi"}'
 ```
 
 **With system prompt**
@@ -248,10 +386,10 @@ curl -X POST http://127.0.0.1:8000/api/ai/chat \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-secret-key" \
   -d '{
-    "prompt": "Review this code: $x = 1 + 1;",
-    "session_id": "test-456",
+    "prompt": "Review this: $x = 1 + 1;",
+    "session_id": "test-2",
     "model": "llama3",
-    "system": "You are a senior PHP code reviewer. Be concise."
+    "system": "You are a senior PHP code reviewer."
   }'
 ```
 
