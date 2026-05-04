@@ -7,22 +7,7 @@ use App\Services\AI\MemoryService;
 
 class AIManager
 {
-    protected $provider;
-
-    public function __construct()
-    {
-        $this->provider = $this->resolveProvider();
-    }
-
-    protected function resolveProvider()
-    {
-        return match (config('ai.provider')) {
-            'ollama' => new OllamaProvider(),
-            default => throw new \Exception('Invalid provider'),
-        };
-    }
-
-    public function generateWithMemory(string $prompt, string $sessionId, ?string $modelKey = null)
+    public function generateWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null)
     {
         $memory = app(MemoryService::class);
 
@@ -32,7 +17,7 @@ class AIManager
 
         $history = $memory->getHistory($conversation);
 
-        $compiledPrompt = $this->compileHistory($history);
+        $compiledPrompt = $this->compileHistory($history, $systemPrompt);
 
         [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
         $provider = $this->resolveProvider($providerName);
@@ -86,7 +71,7 @@ class AIManager
         };
     }
 
-    public function streamWithMemory(string $prompt, string $sessionId, ?string $modelKey = null) {
+    public function streamWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null) {
         $memory = app(MemoryService::class);
 
         $conversation = $memory->getOrCreateConversation($sessionId);
@@ -95,7 +80,7 @@ class AIManager
 
         $history = $memory->getHistory($conversation);
 
-        $compiledPrompt = $this->compileHistory($history);
+        $compiledPrompt = $this->compileHistory($history, $systemPrompt);
 
         [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
         $provider = $this->resolveProvider($providerName);
@@ -106,9 +91,15 @@ class AIManager
         ];
     }
 
-    private function compileHistory(array $history): string
+    private function compileHistory(array $history, ?string $systemPrompt = null): string
     {
         $text = '';
+
+        if ($systemPrompt) {
+            $text .= "System: {$systemPrompt}\n\n";
+        }
+
+        $history = array_slice($history, -6); // last 6 messages only
 
         foreach ($history as $msg) {
             $role = $msg['role'] === 'user' ? 'User' : 'Assistant';

@@ -19,7 +19,8 @@ class AIController extends Controller
         $response = $ai->generateWithMemory(
             $request->prompt,
             $request->session_id,
-            $request->model
+            $request->model,
+            $request->system
         );
 
         return response()->json($response->toArray());
@@ -30,7 +31,8 @@ class AIController extends Controller
         $request->validate([
             'prompt' => 'required|string',
             'session_id' => 'required|string',
-            'model' => 'nullable|string'
+            'model' => 'nullable|string',
+            'system' => 'nullable|string',
         ]);
 
         return new StreamedResponse(function () use ($request, $ai) {
@@ -40,7 +42,8 @@ class AIController extends Controller
             $result = $ai->streamWithMemory(
                 $request->prompt,
                 $request->session_id,
-                $request->model
+                $request->model,
+                $request->system
             );
 
             $response = $result['stream'];
