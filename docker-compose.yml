@@ -5,6 +5,7 @@ services:
   laravel:
     build: ./docker/php
     container_name: laravel_app
+    restart: unless-stopped
     env_file: ./laravel-app/.env
     volumes:
       - ./laravel-app:/var/www
@@ -20,12 +21,14 @@ services:
   mysql:
     image: mysql:8
     container_name: mysql_db
-    restart: always
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: open_claw
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-open_claw}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -35,8 +38,9 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
+    restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
 
@@ -47,4 +51,5 @@ services:
       - "3000:3000"
 
 volumes:
+  mysql_data:
   ollama_data:

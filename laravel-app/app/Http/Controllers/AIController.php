@@ -12,10 +12,10 @@ class AIController extends Controller
     public function chat(Request $request, AIManager $ai)
     {
         $request->validate([
-            'prompt'     => 'required|string',
-            'session_id' => 'required|string',
-            'model'      => 'nullable|string',
-            'system'     => 'nullable|string',
+            'prompt'     => 'required|string|max:4000',
+            'session_id' => 'required|string|max:100',
+            'model'      => 'nullable|string|max:50',
+            'system'     => 'nullable|string|max:1000',
         ]);
 
         $response = $ai->generateWithMemory(
@@ -31,10 +31,10 @@ class AIController extends Controller
     public function stream(Request $request, AIManager $ai)
     {
         $request->validate([
-            'prompt'     => 'required|string',
-            'session_id' => 'required|string',
-            'model'      => 'nullable|string',
-            'system'     => 'nullable|string',
+            'prompt'     => 'required|string|max:4000',
+            'session_id' => 'required|string|max:100',
+            'model'      => 'nullable|string|max:50',
+            'system'     => 'nullable|string|max:1000',
         ]);
 
         try {
@@ -91,10 +91,10 @@ class AIController extends Controller
     public function sse(Request $request, AIManager $ai)
     {
         $request->validate([
-            'prompt'     => 'required|string',
-            'session_id' => 'required|string',
-            'model'      => 'nullable|string',
-            'system'     => 'nullable|string',
+            'prompt'     => 'required|string|max:4000',
+            'session_id' => 'required|string|max:100',
+            'model'      => 'nullable|string|max:50',
+            'system'     => 'nullable|string|max:1000',
         ]);
 
         try {

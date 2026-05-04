@@ -9,10 +9,10 @@ class ApiKeyMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
-        $key = $request->header('X-API-Key');
+        $key        = $request->header('X-API-Key');
         $configured = config('ai.api_key');
 
-        if (!$key || $key !== $configured) {
+        if (!$configured || !$key || !hash_equals($configured, $key)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized: invalid or missing X-API-Key header',
