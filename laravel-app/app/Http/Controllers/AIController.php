@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\AILog;
 use App\Services\AI\AIManager;
 use App\Services\AI\MemoryService;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -18,12 +19,24 @@ class AIController extends Controller
             'system'     => 'nullable|string|max:1000',
         ]);
 
+        $start    = microtime(true);
         $response = $ai->generateWithMemory(
             $request->prompt,
             $request->session_id,
             $request->model,
             $request->system
         );
+        $duration = (int) round((microtime(true) - $start) * 1000);
+
+        AILog::create([
+            'session_id'     => $request->session_id,
+            'model'          => $request->model ?? 'phi',
+            'endpoint'       => 'chat',
+            'prompt_preview' => mb_substr($request->prompt, 0, 200),
+            'duration_ms'    => $duration,
+            'status'         => $response->success ? 'success' : 'error',
+            'error'          => $response->success ? null : $response->message,
+        ]);
 
         return response()->json($response->toArray(), $response->success ? 200 : 503);
     }
@@ -37,6 +50,8 @@ class AIController extends Controller
             'system'     => 'nullable|string|max:1000',
         ]);
 
+        $start = microtime(true);
+
         try {
             $result = $ai->streamWithMemory(
                 $request->prompt,
@@ -45,13 +60,24 @@ class AIController extends Controller
                 $request->system
             );
         } catch (\Exception $e) {
+            AILog::create([
+                'session_id'     => $request->session_id,
+                'model'          => $request->model ?? 'phi',
+                'endpoint'       => 'stream',
+                'prompt_preview' => mb_substr($request->prompt, 0, 200),
+                'status'         => 'error',
+                'error'          => $e->getMessage(),
+            ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
         }
 
-        $memory = app(MemoryService::class);
+        $memory    = app(MemoryService::class);
+        $sessionId = $request->session_id;
+        $model     = $request->model ?? 'phi';
+        $preview   = mb_substr($request->prompt, 0, 200);
 
-        return new StreamedResponse(function () use ($result, $memory) {
-            $body = $result['stream']->getBody();
+        return new StreamedResponse(function () use ($result, $memory, $sessionId, $model, $preview, $start) {
+            $body         = $result['stream']->getBody();
             $conversation = $result['conversation'];
             $fullResponse = '';
 
@@ -81,6 +107,15 @@ class AIController extends Controller
             }
 
             $memory->addMessage($conversation, 'assistant', trim($fullResponse));
+
+            AILog::create([
+                'session_id'     => $sessionId,
+                'model'          => $model,
+                'endpoint'       => 'stream',
+                'prompt_preview' => $preview,
+                'duration_ms'    => (int) round((microtime(true) - $start) * 1000),
+                'status'         => 'success',
+            ]);
         }, 200, [
             'Content-Type'  => 'text/event-stream',
             'Cache-Control' => 'no-cache',
@@ -97,6 +132,8 @@ class AIController extends Controller
             'system'     => 'nullable|string|max:1000',
         ]);
 
+        $start = microtime(true);
+
         try {
             $result = $ai->streamWithMemory(
                 $request->prompt,
@@ -105,13 +142,24 @@ class AIController extends Controller
                 $request->system
             );
         } catch (\Exception $e) {
+            AILog::create([
+                'session_id'     => $request->session_id,
+                'model'          => $request->model ?? 'phi',
+                'endpoint'       => 'sse',
+                'prompt_preview' => mb_substr($request->prompt, 0, 200),
+                'status'         => 'error',
+                'error'          => $e->getMessage(),
+            ]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
         }
 
-        $memory = app(MemoryService::class);
+        $memory    = app(MemoryService::class);
+        $sessionId = $request->session_id;
+        $model     = $request->model ?? 'phi';
+        $preview   = mb_substr($request->prompt, 0, 200);
 
-        return new StreamedResponse(function () use ($result, $memory) {
-            $stream = $result['stream'];
+        return new StreamedResponse(function () use ($result, $memory, $sessionId, $model, $preview, $start) {
+            $stream       = $result['stream'];
             $conversation = $result['conversation'];
             $fullResponse = '';
 
@@ -142,6 +190,15 @@ class AIController extends Controller
             }
 
             $memory->addMessage($conversation, 'assistant', $fullResponse);
+
+            AILog::create([
+                'session_id'     => $sessionId,
+                'model'          => $model,
+                'endpoint'       => 'sse',
+                'prompt_preview' => $preview,
+                'duration_ms'    => (int) round((microtime(true) - $start) * 1000),
+                'status'         => 'success',
+            ]);
         }, 200, [
             'Content-Type'      => 'text/event-stream',
             'Cache-Control'     => 'no-cache',

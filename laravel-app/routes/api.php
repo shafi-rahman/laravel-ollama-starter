@@ -2,25 +2,32 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\ConversationController;
 
 Route::get('/health', function () {
     try {
-        $response = \Illuminate\Support\Facades\Http::timeout(5)
-            ->get(str_replace('/api/chat', '', config('ai.providers.ollama.url')));
-        $ollamaUp = $response->successful();
+        $base = preg_replace('#/api/chat$#', '', config('ai.providers.ollama.url'));
+        $up   = \Illuminate\Support\Facades\Http::timeout(5)->get($base)->successful();
     } catch (\Exception) {
-        $ollamaUp = false;
+        $up = false;
     }
 
     return response()->json([
-        'status'  => $ollamaUp ? 'ok' : 'degraded',
-        'ollama'  => $ollamaUp ? 'reachable' : 'unreachable',
-        'time'    => now()->toISOString(),
-    ], $ollamaUp ? 200 : 503);
+        'status' => $up ? 'ok' : 'degraded',
+        'ollama' => $up ? 'reachable' : 'unreachable',
+        'time'   => now()->toISOString(),
+    ], $up ? 200 : 503);
 });
 
 Route::middleware(['api.key', 'throttle:60,1'])->group(function () {
-    Route::post('/ai/chat', [AIController::class, 'chat']);
+
+    // AI endpoints
+    Route::post('/ai/chat',   [AIController::class, 'chat']);
     Route::post('/ai/stream', [AIController::class, 'stream']);
-    Route::post('/ai/sse', [AIController::class, 'sse']);
+    Route::post('/ai/sse',    [AIController::class, 'sse']);
+
+    // History & logs
+    Route::get('/ai/conversations',              [ConversationController::class, 'index']);
+    Route::get('/ai/conversations/{session_id}', [ConversationController::class, 'show']);
+    Route::get('/ai/logs',                       [ConversationController::class, 'logs']);
 });

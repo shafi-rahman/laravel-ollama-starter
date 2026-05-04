@@ -5,6 +5,10 @@ return [
 
     'api_key' => env('AI_API_KEY'),
 
+    // Ollama inference limits — lower values = less RAM and CPU on local machines
+    'num_ctx'     => env('OLLAMA_NUM_CTX', 2048),
+    'num_predict' => env('OLLAMA_NUM_PREDICT', 512),
+
     'providers' => [
 
         'ollama' => [

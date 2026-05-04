@@ -17,6 +17,10 @@ class OllamaProvider implements AIProvider
                     'messages'   => $messages,
                     'stream'     => false,
                     'keep_alive' => '10m',
+                    'options'    => [
+                        'num_ctx'     => (int) config('ai.num_ctx', 2048),
+                        'num_predict' => (int) config('ai.num_predict', 512),
+                    ],
                 ]
             );
 
@@ -40,6 +44,10 @@ class OllamaProvider implements AIProvider
                     'messages'   => $messages,
                     'stream'     => true,
                     'keep_alive' => '10m',
+                    'options'    => [
+                        'num_ctx'     => (int) config('ai.num_ctx', 2048),
+                        'num_predict' => (int) config('ai.num_predict', 512),
+                    ],
                 ]
             );
 
