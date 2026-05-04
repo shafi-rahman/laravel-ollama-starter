@@ -7,43 +7,46 @@ use App\Services\AI\MemoryService;
 
 class AIManager
 {
-    public function generateWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null)
+    public function generateWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null): AIResponse
+    {
+        try {
+            $memory = app(MemoryService::class);
+
+            $conversation = $memory->getOrCreateConversation($sessionId);
+            $memory->addMessage($conversation, 'user', $prompt);
+            $history = $memory->getHistory($conversation);
+            $compiledPrompt = $this->compileHistory($history, $systemPrompt);
+
+            [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
+            $provider = $this->resolveProvider($providerName);
+
+            $raw = $provider->generate($compiledPrompt, $model);
+            $responseText = trim($raw['response'] ?? '');
+
+            $memory->addMessage($conversation, 'assistant', $responseText);
+
+            return new AIResponse(success: true, model: $modelKey ?? 'phi', message: $responseText);
+        } catch (\Exception $e) {
+            return new AIResponse(success: false, model: $modelKey ?? 'phi', message: $e->getMessage());
+        }
+    }
+
+    public function streamWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null): array
     {
         $memory = app(MemoryService::class);
 
         $conversation = $memory->getOrCreateConversation($sessionId);
-
         $memory->addMessage($conversation, 'user', $prompt);
-
         $history = $memory->getHistory($conversation);
-
         $compiledPrompt = $this->compileHistory($history, $systemPrompt);
 
         [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
         $provider = $this->resolveProvider($providerName);
 
-        $raw = $provider->generate($compiledPrompt, $model);
-
-        $responseText = trim($raw['response'] ?? '');
-
-        $memory->addMessage($conversation, 'assistant', $responseText);
-
-        return new AIResponse(
-            success: true,
-            model: $modelKey ?? 'phi',
-            message: $responseText
-        );
-    }
-
-    public function stream(string $prompt, ?string $modelKey = null)
-    {
-        $modelKey = $modelKey ?? 'phi';
-
-        [$providerName, $model] = $this->resolveModel($modelKey);
-
-        $provider = $this->resolveProvider($providerName);
-
-        return $provider->stream($prompt, $model);
+        return [
+            'stream' => $provider->stream($compiledPrompt, $model),
+            'conversation' => $conversation,
+        ];
     }
 
     private function resolveModel(string $modelKey): array
@@ -56,39 +59,15 @@ class AIManager
             }
         }
 
-        throw new \Exception("Model [$modelKey] not found");
+        throw new \Exception("Model [$modelKey] not found in config");
     }
 
     private function resolveProvider(string $name)
     {
         return match ($name) {
             'ollama' => app(\App\Services\AI\Providers\OllamaProvider::class),
-
-            // future
-            // 'openai' => app(OpenAIProvider::class),
-
-            default => throw new \Exception("Provider [$name] not supported"),
+            default  => throw new \Exception("Provider [$name] not supported"),
         };
-    }
-
-    public function streamWithMemory(string $prompt, string $sessionId, ?string $modelKey = null, ?string $systemPrompt = null) {
-        $memory = app(MemoryService::class);
-
-        $conversation = $memory->getOrCreateConversation($sessionId);
-
-        $memory->addMessage($conversation, 'user', $prompt);
-
-        $history = $memory->getHistory($conversation);
-
-        $compiledPrompt = $this->compileHistory($history, $systemPrompt);
-
-        [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
-        $provider = $this->resolveProvider($providerName);
-
-        return [
-            'stream' => $provider->stream($compiledPrompt, $model),
-            'conversation' => $conversation,
-        ];
     }
 
     private function compileHistory(array $history, ?string $systemPrompt = null): string
@@ -99,7 +78,7 @@ class AIManager
             $text .= "System: {$systemPrompt}\n\n";
         }
 
-        $history = array_slice($history, -6); // last 6 messages only
+        $history = array_slice($history, -6);
 
         foreach ($history as $msg) {
             $role = $msg['role'] === 'user' ? 'User' : 'Assistant';

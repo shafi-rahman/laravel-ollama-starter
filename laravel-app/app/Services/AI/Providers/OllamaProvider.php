@@ -10,36 +10,37 @@ class OllamaProvider implements AIProvider
     public function generate(string $prompt, string $model): array
     {
         set_time_limit(600);
-        return Http::timeout(600)->post(
-            config('ai.providers.ollama.url'),
-            [
-                'model' => $model,
-                'prompt' => $prompt,
-                'stream' => false
-            ]
-        )->json();
+        try {
+            $response = Http::timeout(600)->post(
+                config('ai.providers.ollama.url'),
+                ['model' => $model, 'prompt' => $prompt, 'stream' => false]
+            );
+
+            if ($response->failed()) {
+                throw new \RuntimeException("Ollama returned HTTP {$response->status()}");
+            }
+
+            return $response->json();
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            throw new \RuntimeException('Ollama is unreachable. Is it running? ' . $e->getMessage());
+        }
     }
 
-    // public function generate(string $prompt, string $model): array
-    // {
-    //     return Http::post('http://127.0.0.1:11434/api/generate', [
-    //         'model' => 'phi',
-    //         'prompt' => 'hello',
-    //         'stream' => false
-    //     ])->json();
-    // }
-
-    public function stream(string $prompt, string $model)
+    public function stream(string $prompt, string $model): mixed
     {
-        return Http::withOptions([
-            'stream' => true,
-        ])->post(
-            config('ai.providers.ollama.url'), // ✅ FIXED
-            [
-                'model' => $model,
-                'prompt' => $prompt,
-                'stream' => true
-            ]
-        );
+        try {
+            $response = Http::withOptions(['stream' => true])->post(
+                config('ai.providers.ollama.url'),
+                ['model' => $model, 'prompt' => $prompt, 'stream' => true]
+            );
+
+            if ($response->failed()) {
+                throw new \RuntimeException("Ollama returned HTTP {$response->status()}");
+            }
+
+            return $response;
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            throw new \RuntimeException('Ollama is unreachable. Is it running? ' . $e->getMessage());
+        }
     }
 }

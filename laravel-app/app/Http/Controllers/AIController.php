@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\AI\AIManager;
+use App\Services\AI\MemoryService;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AIController extends Controller
@@ -11,9 +12,10 @@ class AIController extends Controller
     public function chat(Request $request, AIManager $ai)
     {
         $request->validate([
-            'prompt' => 'required|string',
+            'prompt'     => 'required|string',
             'session_id' => 'required|string',
-            'model' => 'nullable|string'
+            'model'      => 'nullable|string',
+            'system'     => 'nullable|string',
         ]);
 
         $response = $ai->generateWithMemory(
@@ -23,53 +25,49 @@ class AIController extends Controller
             $request->system
         );
 
-        return response()->json($response->toArray());
+        return response()->json($response->toArray(), $response->success ? 200 : 503);
     }
 
     public function stream(Request $request, AIManager $ai)
     {
         $request->validate([
-            'prompt' => 'required|string',
+            'prompt'     => 'required|string',
             'session_id' => 'required|string',
-            'model' => 'nullable|string',
-            'system' => 'nullable|string',
+            'model'      => 'nullable|string',
+            'system'     => 'nullable|string',
         ]);
 
-        return new StreamedResponse(function () use ($request, $ai) {
-
-            $memory = app(\App\Services\AI\MemoryService::class);
-
+        try {
             $result = $ai->streamWithMemory(
                 $request->prompt,
                 $request->session_id,
                 $request->model,
                 $request->system
             );
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        }
 
+        $memory = app(MemoryService::class);
+
+        return new StreamedResponse(function () use ($result, $memory) {
             $response = $result['stream'];
             $conversation = $result['conversation'];
-
             $body = $response->getBody();
-
-            $fullResponse = ''; 
+            $fullResponse = '';
 
             while (!$body->eof()) {
                 $chunk = $body->read(1024);
 
-                $lines = explode("\n", $chunk);
-
-                foreach ($lines as $line) {
+                foreach (explode("\n", $chunk) as $line) {
                     if (empty($line)) continue;
 
                     $json = json_decode($line, true);
-
                     if (!$json) continue;
 
                     if (isset($json['response'])) {
                         $text = $json['response'];
-
                         echo "data: " . $text . "\n\n";
-
                         $fullResponse .= $text;
                     }
 
@@ -83,11 +81,72 @@ class AIController extends Controller
             }
 
             $memory->addMessage($conversation, 'assistant', trim($fullResponse));
-
         }, 200, [
-            'Content-Type' => 'text/event-stream',
+            'Content-Type'  => 'text/event-stream',
             'Cache-Control' => 'no-cache',
-            'Connection' => 'keep-alive',
+            'Connection'    => 'keep-alive',
+        ]);
+    }
+
+    public function sse(Request $request, AIManager $ai)
+    {
+        $request->validate([
+            'prompt'     => 'required|string',
+            'session_id' => 'required|string',
+            'model'      => 'nullable|string',
+            'system'     => 'nullable|string',
+        ]);
+
+        try {
+            $result = $ai->streamWithMemory(
+                $request->prompt,
+                $request->session_id,
+                $request->model,
+                $request->system
+            );
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        }
+
+        $memory = app(MemoryService::class);
+
+        return new StreamedResponse(function () use ($result, $memory) {
+            $stream = $result['stream'];
+            $conversation = $result['conversation'];
+            $fullResponse = '';
+
+            foreach ($stream->getBody() as $chunk) {
+                foreach (explode("\n", $chunk) as $line) {
+                    if (empty($line)) continue;
+
+                    $data = json_decode($line, true);
+                    if (!$data) continue;
+
+                    $text = $data['response'] ?? '';
+
+                    if ($text) {
+                        $fullResponse .= $text;
+                        echo "event: message\n";
+                        echo "data: " . str_replace("\n", "\\n", $text) . "\n\n";
+                        ob_flush();
+                        flush();
+                    }
+
+                    if (!empty($data['done'])) {
+                        echo "event: done\n";
+                        echo "data: true\n\n";
+                        ob_flush();
+                        flush();
+                    }
+                }
+            }
+
+            $memory->addMessage($conversation, 'assistant', $fullResponse);
+        }, 200, [
+            'Content-Type'     => 'text/event-stream',
+            'Cache-Control'    => 'no-cache',
+            'Connection'       => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
         ]);
     }
 }
