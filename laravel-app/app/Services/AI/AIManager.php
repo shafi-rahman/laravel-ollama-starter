@@ -1,7 +1,6 @@
 <?php
 namespace App\Services\AI;
 
-use App\Services\AI\Providers\OllamaProvider;
 use App\Services\AI\DTOs\AIResponse;
 use App\Services\AI\MemoryService;
 
@@ -15,13 +14,13 @@ class AIManager
             $conversation = $memory->getOrCreateConversation($sessionId);
             $memory->addMessage($conversation, 'user', $prompt);
             $history = $memory->getHistory($conversation);
-            $compiledPrompt = $this->compileHistory($history, $systemPrompt);
+            $messages = $this->buildMessages($history, $systemPrompt);
 
             [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
             $provider = $this->resolveProvider($providerName);
 
-            $raw = $provider->generate($compiledPrompt, $model);
-            $responseText = trim($raw['response'] ?? '');
+            $raw = $provider->generate($messages, $model);
+            $responseText = trim($raw['message']['content'] ?? '');
 
             $memory->addMessage($conversation, 'assistant', $responseText);
 
@@ -38,22 +37,20 @@ class AIManager
         $conversation = $memory->getOrCreateConversation($sessionId);
         $memory->addMessage($conversation, 'user', $prompt);
         $history = $memory->getHistory($conversation);
-        $compiledPrompt = $this->compileHistory($history, $systemPrompt);
+        $messages = $this->buildMessages($history, $systemPrompt);
 
         [$providerName, $model] = $this->resolveModel($modelKey ?? 'phi');
         $provider = $this->resolveProvider($providerName);
 
         return [
-            'stream' => $provider->stream($compiledPrompt, $model),
+            'stream'       => $provider->stream($messages, $model),
             'conversation' => $conversation,
         ];
     }
 
     private function resolveModel(string $modelKey): array
     {
-        $providers = config('ai.providers');
-
-        foreach ($providers as $providerName => $provider) {
+        foreach (config('ai.providers') as $providerName => $provider) {
             if (isset($provider['models'][$modelKey])) {
                 return [$providerName, $provider['models'][$modelKey]];
             }
@@ -70,21 +67,18 @@ class AIManager
         };
     }
 
-    private function compileHistory(array $history, ?string $systemPrompt = null): string
+    private function buildMessages(array $history, ?string $systemPrompt = null): array
     {
-        $text = '';
+        $messages = [];
 
         if ($systemPrompt) {
-            $text .= "System: {$systemPrompt}\n\n";
+            $messages[] = ['role' => 'system', 'content' => $systemPrompt];
         }
 
-        $history = array_slice($history, -6);
-
-        foreach ($history as $msg) {
-            $role = $msg['role'] === 'user' ? 'User' : 'Assistant';
-            $text .= "{$role}: {$msg['content']}\n";
+        foreach (array_slice($history, -10) as $msg) {
+            $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
         }
 
-        return $text;
+        return $messages;
     }
 }

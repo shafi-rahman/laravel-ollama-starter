@@ -5,12 +5,17 @@ services:
   laravel:
     build: ./docker/php
     container_name: laravel_app
+    env_file: ./laravel-app/.env
     volumes:
       - ./laravel-app:/var/www
     ports:
       - "8000:8000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      OLLAMA_URL: http://ollama:11434/api/chat
 
   mysql:
     image: mysql:8
@@ -18,18 +23,28 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: openclaw
+      MYSQL_DATABASE: open_claw
     ports:
       - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   ollama:
     image: ollama/ollama
     container_name: ollama
     ports:
       - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
 
   openclaw:
     build: ./openclaw
     container_name: openclaw
     ports:
       - "3000:3000"
+
+volumes:
+  ollama_data:

@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.idea/
+.vscode/
+.zed/
+
+# Docker volumes
+docker/mysql/
+docker/ollama/

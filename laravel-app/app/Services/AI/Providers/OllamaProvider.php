@@ -6,14 +6,18 @@ use App\Services\AI\Contracts\AIProvider;
 
 class OllamaProvider implements AIProvider
 {
-
-    public function generate(string $prompt, string $model): array
+    public function generate(array $messages, string $model): array
     {
         set_time_limit(600);
         try {
             $response = Http::timeout(600)->post(
                 config('ai.providers.ollama.url'),
-                ['model' => $model, 'prompt' => $prompt, 'stream' => false]
+                [
+                    'model'      => $model,
+                    'messages'   => $messages,
+                    'stream'     => false,
+                    'keep_alive' => '10m',
+                ]
             );
 
             if ($response->failed()) {
@@ -26,12 +30,17 @@ class OllamaProvider implements AIProvider
         }
     }
 
-    public function stream(string $prompt, string $model): mixed
+    public function stream(array $messages, string $model): mixed
     {
         try {
-            $response = Http::withOptions(['stream' => true])->post(
+            $response = Http::timeout(300)->withOptions(['stream' => true])->post(
                 config('ai.providers.ollama.url'),
-                ['model' => $model, 'prompt' => $prompt, 'stream' => true]
+                [
+                    'model'      => $model,
+                    'messages'   => $messages,
+                    'stream'     => true,
+                    'keep_alive' => '10m',
+                ]
             );
 
             if ($response->failed()) {

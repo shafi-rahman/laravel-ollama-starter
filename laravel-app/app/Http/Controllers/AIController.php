@@ -51,9 +51,8 @@ class AIController extends Controller
         $memory = app(MemoryService::class);
 
         return new StreamedResponse(function () use ($result, $memory) {
-            $response = $result['stream'];
+            $body = $result['stream']->getBody();
             $conversation = $result['conversation'];
-            $body = $response->getBody();
             $fullResponse = '';
 
             while (!$body->eof()) {
@@ -65,8 +64,9 @@ class AIController extends Controller
                     $json = json_decode($line, true);
                     if (!$json) continue;
 
-                    if (isset($json['response'])) {
-                        $text = $json['response'];
+                    $text = $json['message']['content'] ?? '';
+
+                    if ($text !== '') {
                         echo "data: " . $text . "\n\n";
                         $fullResponse .= $text;
                     }
@@ -122,9 +122,9 @@ class AIController extends Controller
                     $data = json_decode($line, true);
                     if (!$data) continue;
 
-                    $text = $data['response'] ?? '';
+                    $text = $data['message']['content'] ?? '';
 
-                    if ($text) {
+                    if ($text !== '') {
                         $fullResponse .= $text;
                         echo "event: message\n";
                         echo "data: " . str_replace("\n", "\\n", $text) . "\n\n";
@@ -143,9 +143,9 @@ class AIController extends Controller
 
             $memory->addMessage($conversation, 'assistant', $fullResponse);
         }, 200, [
-            'Content-Type'     => 'text/event-stream',
-            'Cache-Control'    => 'no-cache',
-            'Connection'       => 'keep-alive',
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache',
+            'Connection'        => 'keep-alive',
             'X-Accel-Buffering' => 'no',
         ]);
     }
