@@ -10,8 +10,10 @@ return [
         'ollama' => [
             'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434/api/chat'),
             'models' => [
-                'phi' => 'phi:latest',
+                'phi'    => 'phi:latest',
                 'llama3' => 'llama3:latest',
+                'gemma2' => 'gemma2:latest',
+                'mistral'=> 'mistral:latest',
             ],
         ],
 

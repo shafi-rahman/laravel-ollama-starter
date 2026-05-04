@@ -1,52 +1,138 @@
 # Laravel Ollama AI Starter
 
-A production-ready AI chat API backend built with **Laravel 12** and **Ollama** (local LLM inference). No third-party AI API keys required — runs entirely on your own machine or server.
+A production-ready AI chat API backend built with **Laravel 12** and **Ollama** (local LLM inference). No third-party API keys or cloud costs — runs entirely on your own machine.
+
+Includes a built-in chat UI at `/chat` for local testing, SSE streaming, conversation memory, and a provider-agnostic architecture ready to plug in OpenAI or Claude.
+
+---
 
 ## Features
 
-- Three response modes: JSON, chunked streaming, Server-Sent Events (SSE)
-- Conversation memory — session-based, persisted to database
-- Multi-model support — switch between models per request
-- Provider-agnostic architecture — plug in OpenAI, Claude, or Gemini without touching core logic
-- API key authentication on all AI endpoints
-- Rate limiting (60 requests / minute)
-- Health check endpoint
-- Docker Compose setup with MySQL, Ollama, and Laravel
+- **Three response modes** — JSON (`/api/ai/chat`), chunked streaming (`/api/ai/stream`), Server-Sent Events (`/api/ai/sse`)
+- **Conversation memory** — session-based, persisted to MySQL/SQLite
+- **Multi-model support** — phi, llama3, gemma2, mistral — switch per request
+- **Built-in chat UI** — real-time SSE streaming interface at `/chat`
+- **API key authentication** — `X-API-Key` header on all AI endpoints
+- **Rate limiting** — 60 requests/min per IP
+- **Health check** — `GET /api/health` for monitoring
+- **Provider-agnostic** — plug in OpenAI or Claude without changing core logic
+- **Docker Compose** — one command to run MySQL + Ollama + Laravel
+
+---
 
 ## Architecture
 
 ```
-Client
-  │
-  ▼
-Laravel API  ──── ApiKeyMiddleware ──── throttle:60,1
-  │
-  ▼
-AIController
-  │
-  ▼
-AIManager
-  ├── MemoryService  →  MySQL (conversations + messages)
-  └── OllamaProvider →  Ollama  /api/chat
+Client  →  /chat (browser UI)
+             │
+             ▼
+Client  →  Laravel API  ──  ApiKeyMiddleware + throttle
+                │
+                ▼
+           AIManager
+           /         \
+  MemoryService      OllamaProvider
+       │                   │
+    MySQL             Ollama  /api/chat
+  (conversations       (local LLM)
+   + messages)
 ```
+
+---
 
 ## Prerequisites
 
-- PHP 8.2+
-- Composer
-- MySQL (or SQLite for local dev)
-- [Ollama](https://ollama.com) installed and running locally
+| Requirement | Version |
+|---|---|
+| PHP | 8.2 or higher |
+| Composer | 2.x |
+| MySQL | 8.x (or use SQLite for quick start) |
+| [Ollama](https://ollama.com) | Latest |
 
-## Quick Start
+---
 
-### 1. Clone
+## Part 1 — Install Ollama
+
+Ollama runs LLMs locally on your machine. Install it first.
+
+### macOS
+```bash
+brew install ollama
+```
+
+### Windows
+Download and run the installer from [ollama.com/download](https://ollama.com/download).
+
+### Linux
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### Start Ollama
+```bash
+ollama serve
+```
+
+Ollama runs at `http://127.0.0.1:11434` by default. Verify it's running:
+
+```bash
+curl http://127.0.0.1:11434
+# → Ollama is running
+```
+
+---
+
+## Part 2 — Pull a Model
+
+You must pull at least one model before using the API. Each model is downloaded once and cached locally.
+
+### Recommended Models
+
+| Model key | Pull command | Size | Notes |
+|---|---|---|---|
+| `phi` | `ollama pull phi` | ~1.6 GB | **Start here.** Fastest, lowest RAM |
+| `llama3` | `ollama pull llama3` | ~4.7 GB | Better quality responses |
+| `gemma2` | `ollama pull gemma2` | ~5.4 GB | Google model, strong reasoning |
+| `mistral` | `ollama pull mistral` | ~4.1 GB | Balanced speed and quality |
+
+### Quick start (pull phi — smallest model)
+```bash
+ollama pull phi
+```
+
+### Verify the model works
+```bash
+curl http://127.0.0.1:11434/api/chat -d '{
+  "model": "phi",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "stream": false
+}'
+```
+
+You should get a JSON response with `"message": {"role": "assistant", "content": "..."}`.
+
+### List downloaded models
+```bash
+ollama list
+```
+
+### Remove a model
+```bash
+ollama rm mistral
+```
+
+---
+
+## Part 3 — Set Up the Laravel App
+
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/your-username/laravel-ollama-ai-starter.git
 cd laravel-ollama-ai-starter/laravel-app
 ```
 
-### 2. Install dependencies
+### 2. Install PHP dependencies
 
 ```bash
 composer install
@@ -59,29 +145,37 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Open `.env` and set:
+Open `.env` and update these values:
 
 ```env
+# Database — choose MySQL or SQLite below
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
 DB_DATABASE=open_claw
 DB_USERNAME=root
 DB_PASSWORD=your_password
 
+# Ollama
 OLLAMA_URL=http://127.0.0.1:11434/api/chat
-AI_API_KEY=your-secret-key
+
+# API authentication key (choose any secret string)
+AI_API_KEY=my-secret-key
 ```
 
-### 4. Run migrations
+> **SQLite (zero config alternative):**
+> Set `DB_CONNECTION=sqlite` and skip the MySQL setup. Laravel will create `database/database.sqlite` automatically.
+
+### 4. Create the database (MySQL only)
+
+```bash
+mysql -u root -p -e "CREATE DATABASE open_claw;"
+```
+
+### 5. Run migrations
 
 ```bash
 php artisan migrate
-```
-
-### 5. Pull an Ollama model
-
-```bash
-ollama pull phi
-# or for better quality
-ollama pull llama3
 ```
 
 ### 6. Start the server
@@ -90,7 +184,76 @@ ollama pull llama3
 php artisan serve
 ```
 
-API is now available at `http://127.0.0.1:8000`.
+The app runs at `http://127.0.0.1:8000`.
+
+---
+
+## Part 4 — Test It
+
+### Open the chat UI
+
+Go to [http://127.0.0.1:8000/chat](http://127.0.0.1:8000/chat) in your browser.
+
+1. Enter your `AI_API_KEY` in the **API Key** field
+2. Select a model from the dropdown
+3. (Optional) Add a system prompt, e.g. `You are a senior Laravel developer`
+4. Type a message and press **Enter**
+
+You'll see tokens stream in real time as the model responds.
+
+---
+
+### Test with cURL
+
+**Health check (no auth)**
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+```json
+{ "status": "ok", "ollama": "reachable", "time": "..." }
+```
+
+**Standard chat**
+```bash
+curl -X POST http://127.0.0.1:8000/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: my-secret-key" \
+  -d '{
+    "prompt": "Explain what Laravel is in 2 sentences",
+    "session_id": "test-123",
+    "model": "phi"
+  }'
+```
+
+```json
+{ "success": true, "model": "phi", "message": "Laravel is..." }
+```
+
+**SSE streaming**
+```bash
+curl -X POST http://127.0.0.1:8000/api/ai/sse \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: my-secret-key" \
+  -d '{
+    "prompt": "List 3 Laravel features",
+    "session_id": "test-123",
+    "model": "phi"
+  }'
+```
+
+**With system prompt**
+```bash
+curl -X POST http://127.0.0.1:8000/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: my-secret-key" \
+  -d '{
+    "prompt": "Review this code: $x = 1 + 1;",
+    "session_id": "test-456",
+    "model": "llama3",
+    "system": "You are a senior PHP code reviewer. Be concise."
+  }'
+```
 
 ---
 
@@ -98,81 +261,54 @@ API is now available at `http://127.0.0.1:8000`.
 
 ### Authentication
 
-Every AI endpoint requires the `X-API-Key` header matching `AI_API_KEY` in your `.env`.
+All AI endpoints require the `X-API-Key` header:
 
 ```
 X-API-Key: your-secret-key
 ```
 
+Returns `401` if missing or incorrect.
+
 ---
 
 ### `POST /api/ai/chat`
 
-Standard JSON response with full conversation memory.
+Non-streaming JSON response.
 
-**Request**
-
-```json
-{
-  "prompt": "Explain what Laravel is",
-  "session_id": "user-123",
-  "model": "phi",
-  "system": "You are a senior Laravel developer"
-}
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `prompt` | Yes | User message |
-| `session_id` | Yes | Conversation identifier |
-| `model` | No | `phi` (default) or `llama3` |
-| `system` | No | System prompt / persona |
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `prompt` | string | Yes | User message |
+| `session_id` | string | Yes | Conversation ID — reuse to continue a conversation |
+| `model` | string | No | `phi` (default), `llama3`, `gemma2`, `mistral` |
+| `system` | string | No | System prompt / persona |
 
 **Response**
-
 ```json
 {
   "success": true,
   "model": "phi",
-  "message": "Laravel is a PHP web framework..."
+  "message": "Laravel is a PHP web application framework..."
 }
-```
-
-**cURL example**
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/ai/chat \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-secret-key" \
-  -d '{"prompt":"Explain Laravel","session_id":"abc123","model":"phi"}'
 ```
 
 ---
 
 ### `POST /api/ai/sse`
 
-Server-Sent Events streaming. Best for browser clients using `EventSource`.
+Server-Sent Events streaming. Best for browser clients.
 
-**Stream output**
+Same request body as `/api/ai/chat`.
 
+**Stream events**
 ```
 event: message
-data: Laravel is
+data: Laravel
 
 event: message
-data:  a PHP framework
+data:  is a PHP
 
 event: done
 data: true
-```
-
-**cURL example**
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/ai/sse \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-secret-key" \
-  -d '{"prompt":"Explain Laravel","session_id":"abc123"}'
 ```
 
 ---
@@ -185,7 +321,7 @@ Raw chunked streaming. Same request body as `/api/ai/chat`.
 
 ### `GET /api/health`
 
-No authentication required. Returns Ollama connectivity status.
+No authentication required.
 
 ```json
 {
@@ -197,22 +333,31 @@ No authentication required. Returns Ollama connectivity status.
 
 ---
 
-## Available Models
+## Docker Setup
 
-| Key | Ollama Model | Notes |
-|---|---|---|
-| `phi` | `phi:latest` | Fast, lightweight (3B) — default |
-| `llama3` | `llama3:latest` | Better quality (8B) |
+Run everything (MySQL + Ollama + Laravel) with one command:
 
-Add more models in `laravel-app/config/ai.php`:
+```bash
+# 1. Copy and configure env
+cp laravel-app/.env.example laravel-app/.env
+# Edit laravel-app/.env and set AI_API_KEY
 
-```php
-'models' => [
-    'phi'     => 'phi:latest',
-    'llama3'  => 'llama3:latest',
-    'mistral' => 'mistral:latest',  // add any Ollama model
-],
+# 2. Start all services
+docker-compose up -d
+
+# 3. Run migrations
+docker exec laravel_app php artisan migrate
+
+# 4. Pull a model into the Ollama container
+docker exec ollama ollama pull phi
 ```
+
+| Service | URL |
+|---|---|
+| Laravel API | http://localhost:8000 |
+| Chat UI | http://localhost:8000/chat |
+| Ollama | http://localhost:11434 |
+| MySQL | localhost:3306 |
 
 ---
 
@@ -220,37 +365,13 @@ Add more models in `laravel-app/config/ai.php`:
 
 | Variable | Description | Default |
 |---|---|---|
-| `AI_API_KEY` | API authentication key | — |
+| `AI_API_KEY` | API authentication key | — (required) |
 | `OLLAMA_URL` | Ollama chat endpoint | `http://127.0.0.1:11434/api/chat` |
-| `OLLAMA_MODEL` | Default model key | `phi` |
-| `DB_CONNECTION` | Database driver | `mysql` |
+| `DB_CONNECTION` | `mysql` or `sqlite` | `mysql` |
 | `DB_DATABASE` | Database name | `open_claw` |
-
----
-
-## Docker
-
-```bash
-# Copy env and set your API key
-cp laravel-app/.env.example laravel-app/.env
-
-docker-compose up -d
-
-# Run migrations inside the container
-docker exec laravel_app php artisan migrate
-
-# Pull a model into the Ollama container
-docker exec ollama ollama pull phi
-```
-
-Services:
-
-| Service | Port |
-|---|---|
-| Laravel API | 8000 |
-| MySQL | 3306 |
-| Ollama | 11434 |
-| OpenClaw | 3000 |
+| `DB_HOST` | Database host | `127.0.0.1` |
+| `DB_USERNAME` | Database user | `root` |
+| `DB_PASSWORD` | Database password | — |
 
 ---
 
@@ -260,32 +381,51 @@ Services:
 laravel-app/
 ├── app/
 │   ├── Http/
-│   │   ├── Controllers/
-│   │   │   └── AIController.php       # Chat, stream, SSE endpoints
-│   │   └── Middleware/
-│   │       └── ApiKeyMiddleware.php   # X-API-Key auth
+│   │   ├── Controllers/AIController.php       # Chat, stream, SSE endpoints
+│   │   └── Middleware/ApiKeyMiddleware.php     # X-API-Key authentication
 │   ├── Models/
-│   │   ├── Conversation.php
-│   │   └── Message.php
+│   │   ├── Conversation.php                   # Session-based conversation
+│   │   └── Message.php                        # Individual chat messages
 │   └── Services/AI/
-│       ├── AIManager.php              # Orchestration
-│       ├── MemoryService.php          # Conversation persistence
-│       ├── Contracts/
-│       │   └── AIProvider.php         # Provider interface
-│       ├── DTOs/
-│       │   └── AIResponse.php
-│       └── Providers/
-│           └── OllamaProvider.php     # Ollama implementation
-├── config/
-│   └── ai.php                         # Models, provider URLs, API key
-├── database/migrations/               # conversations + messages tables
+│       ├── AIManager.php                      # Orchestration layer
+│       ├── MemoryService.php                  # DB persistence
+│       ├── Contracts/AIProvider.php           # Provider interface
+│       ├── DTOs/AIResponse.php                # Typed response object
+│       └── Providers/OllamaProvider.php       # Ollama implementation
+├── config/ai.php                              # Models, URLs, API key
+├── database/migrations/                       # conversations + messages
+├── resources/views/chat.blade.php             # Built-in chat UI
 └── routes/
-    └── api.php                        # All API routes
+    ├── api.php                                # AI endpoints
+    └── web.php                                # Chat UI route
 ```
 
 ---
 
-## Adding a New AI Provider
+## Troubleshooting
+
+**`Ollama is unreachable`**
+- Make sure Ollama is running: `ollama serve`
+- Check `OLLAMA_URL` in `.env` matches where Ollama is running
+- If using Docker, Ollama URL inside the container is `http://ollama:11434/api/chat` (already set in docker-compose)
+
+**`Model [phi] not found in config`**
+- The model key must exist in `config/ai.php` under `providers.ollama.models`
+- Add it there and run `php artisan config:clear`
+
+**Model responds slowly on first request**
+- Normal — the model loads into RAM on first use
+- Subsequent requests will be fast (`keep_alive` keeps it warm for 10 minutes)
+
+**`401 Unauthorized`**
+- Add the `X-API-Key` header with the value of `AI_API_KEY` from your `.env`
+
+**`422 Unprocessable Entity`**
+- `prompt` and `session_id` are required fields in the request body
+
+---
+
+## Adding a New Provider
 
 1. Create `app/Services/AI/Providers/OpenAIProvider.php` implementing `AIProvider`:
 
@@ -297,14 +437,12 @@ class OpenAIProvider implements AIProvider
 }
 ```
 
-2. Register it in `AIManager::resolveProvider()`:
-
+2. Register in `AIManager::resolveProvider()`:
 ```php
 'openai' => app(OpenAIProvider::class),
 ```
 
 3. Add config in `config/ai.php`:
-
 ```php
 'openai' => [
     'url'    => env('OPENAI_URL', 'https://api.openai.com/v1/chat/completions'),
@@ -314,9 +452,29 @@ class OpenAIProvider implements AIProvider
 
 ---
 
+## Adding a New Ollama Model
+
+Any model available on [ollama.com/library](https://ollama.com/library) can be added:
+
+```bash
+# Pull the model
+ollama pull codellama
+
+# Add to config/ai.php
+'models' => [
+    'phi'       => 'phi:latest',
+    'llama3'    => 'llama3:latest',
+    'codellama' => 'codellama:latest',   # ← add here
+],
+```
+
+Then pass `"model": "codellama"` in your API request.
+
+---
+
 ## Roadmap
 
-- [ ] Logging middleware — response time, token usage per request
+- [ ] Logging middleware — response time, token count per request
 - [ ] Unit tests — mock provider, test AIManager in isolation
 - [ ] Vector memory — embeddings + semantic search for long-term context
 - [ ] OpenAI / Claude provider implementations
