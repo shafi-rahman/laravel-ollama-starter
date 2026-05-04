@@ -6,6 +6,14 @@ Includes a built-in chat UI at `/chat` for local testing, SSE streaming, convers
 
 ---
 
+## Preview
+
+![Chat UI — streaming response in real time](priview-1.png)
+
+![History and Logs tabs](priview-2.png)
+
+---
+
 ## Features
 
 - **Three response modes** — JSON (`/api/ai/chat`), chunked streaming (`/api/ai/stream`), Server-Sent Events (`/api/ai/sse`)
@@ -612,7 +620,9 @@ Then pass `"model": "codellama"` in your API request.
 
 ## Roadmap
 
-- [ ] Logging middleware — response time, token count per request
+- [x] Request logging — duration, endpoint, model, status per request
+- [x] History tab — browse past conversations and messages
+- [x] Logs tab — request audit table in the chat UI
 - [ ] Unit tests — mock provider, test AIManager in isolation
 - [ ] Vector memory — embeddings + semantic search for long-term context
 - [ ] OpenAI / Claude provider implementations

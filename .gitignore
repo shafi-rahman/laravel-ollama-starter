@@ -1,12 +1,30 @@
+# OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Logs
 *.log
+npm-debug.log*
 
 # IDE
 .idea/
 .vscode/
 .zed/
+*.swp
+*.swo
 
-# Docker volumes
+# Docker volumes (generated at runtime, not source)
 docker/mysql/
 docker/ollama/
+
+# Claude Code session data (local AI tooling)
+.claude/
+
+# OpenClaw — separate project, not part of this repo
+openclaw/
+
+# Env files (never commit real secrets)
+.env
+*.env.local
+*.env.production
