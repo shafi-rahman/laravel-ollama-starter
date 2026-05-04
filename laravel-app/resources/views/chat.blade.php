@@ -218,7 +218,7 @@
         </div>
         <div class="divider"></div>
         <div class="settings-group">
-            <label for="system">System</label>
+            <label for="system">Assistant Role</label>
             <input type="text" id="system" placeholder="e.g. You are a senior developer">
         </div>
     </div>
@@ -309,10 +309,12 @@ const newChatBtn   = document.getElementById('newChatBtn');
 // ── Init ─────────────────────────────────────────────────────────────────────
 apiKeyEl.value = LS.get('api_key');
 modelEl.value  = LS.get('model', 'phi');
+systemEl.value = LS.get('assistant_role');
 sessionLabel.textContent = getSessionId();
 
 apiKeyEl.addEventListener('change', () => LS.set('api_key', apiKeyEl.value));
 modelEl.addEventListener('change',  () => LS.set('model', modelEl.value));
+systemEl.addEventListener('input',  () => LS.set('assistant_role', systemEl.value));
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 let activeTab = 'chat';

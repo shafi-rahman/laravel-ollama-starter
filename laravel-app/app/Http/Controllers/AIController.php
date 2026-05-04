@@ -159,11 +159,13 @@ class AIController extends Controller
         $preview   = mb_substr($request->prompt, 0, 200);
 
         return new StreamedResponse(function () use ($result, $memory, $sessionId, $model, $preview, $start) {
-            $stream       = $result['stream'];
+            $body         = $result['stream']->getBody();
             $conversation = $result['conversation'];
             $fullResponse = '';
 
-            foreach ($stream->getBody() as $chunk) {
+            while (!$body->eof()) {
+                $chunk = $body->read(1024);
+
                 foreach (explode("\n", $chunk) as $line) {
                     if (empty($line)) continue;
 
