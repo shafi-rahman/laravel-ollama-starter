@@ -50,12 +50,12 @@ Client  →  Laravel API  ──  ApiKeyMiddleware + throttle
 
 ## Prerequisites
 
-| Requirement | Version |
-|---|---|
-| PHP | 8.2 or higher |
-| Composer | 2.x |
-| MySQL | 8.x (or use SQLite for quick start) |
-| [Ollama](https://ollama.com) | Latest |
+| Requirement                  | Version                             |
+|------------------------------|-------------------------------------|
+| PHP                          | 8.2 or higher                       |
+| Composer                     | 2.x                                 |
+| MySQL                        | 8.x (or use SQLite for quick start) |
+| [Ollama](https://ollama.com) | Latest                              |
 
 ---
 
@@ -97,10 +97,10 @@ You must pull at least one model before using the API. Each model is downloaded 
 ### Recommended Models
 
 | Model key | Pull command | Size | Notes |
-|---|---|---|---|
-| `phi` | `ollama pull phi` | ~1.6 GB | **Start here.** Fastest, lowest RAM |
-| `llama3` | `ollama pull llama3` | ~4.7 GB | Better quality responses |
-| `gemma2` | `ollama pull gemma2` | ~5.4 GB | Google model, strong reasoning |
+|-----------|--------------|------|-------|
+| `phi`     | `ollama pull phi` | ~1.6 GB | **Start here.** Fastest, lowest RAM |
+| `llama3`  | `ollama pull llama3` | ~4.7 GB | Better quality responses |
+| `gemma2`  | `ollama pull gemma2` | ~5.4 GB | Google model, strong reasoning |
 | `mistral` | `ollama pull mistral` | ~4.1 GB | Balanced speed and quality |
 
 ### Quick start (pull phi — smallest model)
@@ -629,6 +629,15 @@ Then pass `"model": "codellama"` in your API request.
 
 ---
 
-## License
+## 👨‍💻 Author
 
-MIT
+**Shafi Ur Rahman**  
+Senior PHP / Laravel Developer  
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Shafi%20Ur%20Rahman-blue?logo=linkedin&style=flat-square)](https://www.linkedin.com/in/shafirahman-com/)
+
+---
+
+## 📄 License
+
+MIT — free to use, modify, and distribute.
